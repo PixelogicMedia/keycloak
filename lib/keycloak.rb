@@ -88,6 +88,21 @@ module Keycloak
       exec_request _request 
     end
 
+    def self.get_authorization_token(payload = {}, access_token = '')
+      verify_setup
+
+      access_token = self.token["access_token"] if access_token.empty?
+      payload = { 'grant_type' => 'urn:ietf:params:oauth:grant-type:uma-ticket' }.merge(payload)
+      header = { 'Content-Type' => 'application/x-www-form-urlencoded', 'Authorization' => "Bearer #{access_token}" }
+      _request = -> do
+        RestClient.post(@configuration['token_endpoint'], payload, header){ |response, request, result|
+          response.body
+        }
+      end
+
+      exec_request _request
+    end
+
     def self.get_token_by_refresh_token(refresh_token = '')
       verify_setup
 
@@ -632,19 +647,21 @@ module Keycloak
       info['federationLink'] != nil
     end
 
-    def self.create_simple_user(username, password, email, first_name, last_name, realm_roles_names, client_roles_names, proc = nil)
+    def self.create_simple_user(username, password, email, first_name, last_name, realm_roles_names, client_roles_names, email_verified = false,proc = nil)
       begin
         username.downcase!
         user = get_user_info(username, true)
         newUser = false
       rescue Keycloak::UserLoginNotFound
         newUser = true
-      rescue
+      rescue => e
+        e
         raise
       end
 
       proc_default = lambda { |token|
         user_representation = { username: username,
+                                emailVerified: email_verified,
                                 email: email,
                                 firstName: first_name,
                                 lastName: last_name,
