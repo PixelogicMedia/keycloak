@@ -13,7 +13,7 @@ module Keycloak
 
       def current_user
         return @current_user if @current_user.present?
-        authenticate_user!
+        Keycloak.cookies = cookies
         token = Keycloak::Client.token
         return nil unless token
         begin
