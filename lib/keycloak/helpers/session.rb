@@ -21,8 +21,20 @@ module Keycloak
           @current_user = ::User.find_by_email(decoded_token['email'])
           @current_user.keycloak_id = decoded_token['sub'] if @current_user.respond_to?(:keycloak_id=)
           return @current_user
-        rescue => e
-          Keycloak.config.logger.error("#current_user : #{e.message}")
+        rescue TokenError => e
+          if e.reason == :expired
+            begin
+              refresh_token(token)
+              token = Keycloak::Client.token
+              decoded_token = Keycloak.service.decode_and_verify(token['access_token'])
+              @current_user = ::User.find_by_email(decoded_token['email'])
+              @current_user.keycloak_id = decoded_token['sub'] if @current_user.respond_to?(:keycloak_id=)
+              return @current_user
+            rescue
+              nil
+            end
+          end
+        rescue
           nil
         end
       end
@@ -77,11 +89,16 @@ module Keycloak
 
       private
 
-      def second_authentication_try(token)
+      def refresh_token(token)
         Keycloak.logger.debug("Refreshing token")
+        new_token = Keycloak::Client.get_token_by_refresh_token(token['refresh_token'])
+        Keycloak::Client.set_token(new_token)
+        new_token
+      end
+
+      def second_authentication_try(token)
         begin
-          new_token = Keycloak::Client.get_token_by_refresh_token(token['refresh_token'])
-          Keycloak::Client.set_token(new_token)
+          refresh_token(token)
         rescue
           Keycloak.logger.debug("Refresh token failed, redirecting to SSO")
           unauthenticated_redirect
