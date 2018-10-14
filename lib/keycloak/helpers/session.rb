@@ -8,11 +8,12 @@ module Keycloak
         if respond_to?(:helper_method)
           helper_method :current_user, :user_signed_in?, :sign_out!
         end
-        prepend_before_action Proc.new {Keycloak.cookies = cookies}
+        # prepend_before_action Proc.new {Keycloak.cookies = cookies}
       end
 
       def current_user
         return @current_user if @current_user.present?
+        authenticate_user!
         token = Keycloak::Client.token
         return nil unless token
         begin
@@ -35,6 +36,7 @@ module Keycloak
       end
 
       def authenticate_user!
+        Keycloak.cookies = cookies
         token = Keycloak::Client.token
         if token
           begin
