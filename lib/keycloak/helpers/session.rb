@@ -69,7 +69,7 @@ module Keycloak
       def unauthenticated_redirect
         Keycloak.logger.debug("Unauthenticated redirect")
         store_session_history
-        url = url_for controller: Keycloak.config.keycloak_controller, action: Keycloak.config.auth_callback_action
+        url = url_for controller: "/#{Keycloak.config.keycloak_controller}", action: Keycloak.config.auth_callback_action
         redirect_to Keycloak::Client.url_login_redirect(url, response_type = 'code')
       end
 
