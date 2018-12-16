@@ -1,7 +1,7 @@
 PATH
   remote: .
   specs:
-    keycloak (2.4.3)
+    keycloak (2.4.4)
       json
       json-jwt (>= 1.9.4)
       rest-client
@@ -25,8 +25,8 @@ GEM
     i18n (1.1.1)
       concurrent-ruby (~> 1.0)
     json (2.1.0)
-    json-jwt (1.9.4)
-      activesupport
+    json-jwt (1.10.0)
+      activesupport (>= 4.2)
       aes_key_wrap
       bindata
     mime-types (3.2.2)
