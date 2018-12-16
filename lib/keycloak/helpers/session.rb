@@ -6,15 +6,14 @@ module Keycloak
 
       included do
         if respond_to?(:helper_method)
-          helper_method :current_user, :user_signed_in?, :sign_out!
+          helper_method :current_user, :user_signed_in?, :sign_out!, :user_access_token
         end
         # prepend_before_action Proc.new {Keycloak.cookies = cookies}
       end
 
       def current_user
         return @current_user if @current_user.present?
-        Keycloak.cookies = cookies
-        token = Keycloak::Client.token
+        token = Keycloak::Client.token(cookies)
         return nil unless token
         begin
           decoded_token = Keycloak.service.decode_and_verify(token['access_token'])
@@ -25,7 +24,7 @@ module Keycloak
           if e.reason == :expired
             begin
               refresh_token(token)
-              token = Keycloak::Client.token
+              token = Keycloak::Client.token(cookies)
               decoded_token = Keycloak.service.decode_and_verify(token['access_token'])
               @current_user = ::User.find_by_email(decoded_token['email'])
               @current_user.keycloak_id = decoded_token['sub'] if @current_user.respond_to?(:keycloak_id=)
@@ -44,12 +43,15 @@ module Keycloak
       end
 
       def sign_out!
-        Keycloak::Client.logout
+        Keycloak::Client.logout(cookies, '')
+      end
+
+      def user_access_token
+        Keycloak::Client.token(cookies)['access_token']
       end
 
       def authenticate_user!
-        Keycloak.cookies = cookies
-        token = Keycloak::Client.token
+        token = Keycloak::Client.token(cookies)
         if token
           begin
             Keycloak.service.decode_and_verify(token['access_token'])
@@ -92,7 +94,8 @@ module Keycloak
       def refresh_token(token)
         Keycloak.logger.debug("Refreshing token")
         new_token = Keycloak::Client.get_token_by_refresh_token(token['refresh_token'])
-        Keycloak::Client.set_token(new_token)
+
+        Keycloak::Client.set_token(cookies, new_token)
         new_token
       end
 

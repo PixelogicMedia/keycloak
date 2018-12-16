@@ -17,13 +17,13 @@ module Keycloak
       mount_request_token(payload)
     end
 
-    def self.set_token(token)
+    def self.set_token(cookies, token)
       if token
-        Keycloak.cookies[Keycloak.config.cookie_key] = token
+        cookies[Keycloak.config.cookie_key] = token
         Keycloak.logger.debug("Set cookie")
       else
         Keycloak.logger.debug("Delete cookie")
-        Keycloak.cookies.delete Keycloak.config.cookie_key
+        cookies.delete Keycloak.config.cookie_key
       end
     end
 
@@ -62,7 +62,6 @@ module Keycloak
     def self.get_userinfo_issuer(access_token = '')
       verify_setup
 
-      access_token = self.token["access_token"] if access_token.empty?
       payload = { 'access_token' => access_token }
       header = { 'Content-Type' => 'application/x-www-form-urlencoded' }
       _request = -> do
@@ -77,7 +76,6 @@ module Keycloak
     def self.get_authorization_token(payload = {}, access_token = '')
       verify_setup
 
-      access_token = self.token["access_token"] if access_token.empty?
       payload = { 'grant_type' => 'urn:ietf:params:oauth:grant-type:uma-ticket' }.merge(payload)
       header = { 'Content-Type' => 'application/x-www-form-urlencoded', 'Authorization' => "Bearer #{access_token}" }
       _request = -> do
@@ -91,8 +89,6 @@ module Keycloak
 
     def self.get_token_by_refresh_token(refresh_token = '')
       verify_setup
-
-      refresh_token = self.token['refresh_token'] if refresh_token.empty?
 
       payload = { 'client_id' => @client_id,
                   'client_secret' => @secret,
@@ -118,7 +114,6 @@ module Keycloak
     def self.get_token_introspection(token = '', client_id = '', secret = '')
       verify_setup
 
-      token = self.token["access_token"] if token.empty?
       payload = { 'token' => token }
 
       client_id = @client_id if client_id.empty?
@@ -151,12 +146,10 @@ module Keycloak
       "#{@configuration['authorization_endpoint']}?#{p}"
     end
 
-    def self.logout(redirect_uri = '', refresh_token = '')
+    def self.logout(cookies, redirect_uri = '')
       verify_setup
-
-      if self.token || !refresh_token.empty?
-
-        refresh_token = self.token['refresh_token'] if refresh_token.empty?
+      refresh_token = self.token(cookies)['refresh_token']
+      if !refresh_token.empty?
 
         payload = { 'client_id' => @client_id,
                     'client_secret' => @secret,
@@ -175,7 +168,7 @@ module Keycloak
           RestClient.post(final_url, payload, header){ |response, request, result|
             case response.code
             when 200..399
-              set_token(nil)
+              set_token(cookies, nil)
               true
             else
               response.return!
@@ -191,8 +184,6 @@ module Keycloak
 
     def self.get_userinfo(access_token = '')
       verify_setup
-
-      access_token = self.token["access_token"] if access_token.empty?
 
       payload = { 'access_token' => access_token }
 
@@ -258,18 +249,16 @@ module Keycloak
       attr[attributeName]
     end
 
-    def self.token
-      cookie = Keycloak.cookies[Keycloak.config.cookie_key]
+    def self.token(cookies)
+      cookie = cookies[Keycloak.config.cookie_key]
       cookie.present? ? JSON(cookie) : nil
     end
 
     def self.decoded_access_token(access_token = '')
-      access_token = self.token["access_token"] if access_token.empty?
       JWT.decode access_token, @public_key, false, { :algorithm => 'RS256' }
     end
 
     def self.decoded_refresh_token(refresh_token = '')
-      refresh_token = self.token["access_token"] if refresh_token.empty?
       JWT.decode refresh_token, @public_key, false, { :algorithm => 'RS256' }
     end
 
@@ -339,8 +328,6 @@ module Keycloak
     end
 
     def self.decoded_id_token(idToken = '')
-      tk = self.token
-      idToken = tk["id_token"] if idToken.empty?
       if idToken
         @decoded_id_token = JWT.decode idToken, @public_key, false, { :algorithm => 'RS256' }
       end

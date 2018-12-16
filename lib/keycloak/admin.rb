@@ -145,11 +145,7 @@ module Keycloak
     private
 
     def self.effective_access_token(access_token)
-      if access_token.blank?
-        Keycloak::Client.token['access_token']
-      else
-        access_token
-      end
+      access_token
     end
 
     def self.base_url
