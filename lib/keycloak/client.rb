@@ -148,7 +148,8 @@ module Keycloak
 
     def self.logout(cookies, redirect_uri = '')
       verify_setup
-      refresh_token = self.token(cookies)['refresh_token']
+      t = self.token(cookies)
+      refresh_token = t.try(:[], 'refresh_token')
       if !refresh_token.empty?
 
         payload = { 'client_id' => @client_id,
