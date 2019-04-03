@@ -150,7 +150,7 @@ module Keycloak
       verify_setup
       t = self.token(cookies)
       refresh_token = t.try(:[], 'refresh_token')
-      if !refresh_token.empty?
+      if !refresh_token.blank?
 
         payload = { 'client_id' => @client_id,
                     'client_secret' => @secret,
