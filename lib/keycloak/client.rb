@@ -19,7 +19,7 @@ module Keycloak
 
     def self.set_token(cookies, token)
       if token
-        cookies[Keycloak.config.cookie_key] = {value: token, httponly: true, same_site: :lax}
+        cookies[Keycloak.config.cookie_key] = {value: token, httponly: true, same_site: :strict}
         Keycloak.logger.debug("Set cookie")
       else
         Keycloak.logger.debug("Delete cookie")
