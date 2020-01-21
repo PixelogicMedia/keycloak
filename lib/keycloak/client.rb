@@ -1,3 +1,4 @@
+require 'json/jwt'
 module Keycloak
   module Client
     class << self
@@ -211,22 +212,24 @@ module Keycloak
     end
 
     def self.has_role?(user_role, access_token = '')
-      verify_setup
-
-      if user_signed_in?(access_token)
-        dt = decoded_access_token(access_token)[0]
-        dt = dt["resource_access"][@client_id]
-        if dt != nil
-          dt["roles"].each do |role|
-            return true if role.to_s == user_role.to_s
-          end
-          false
-        else
-          false
-        end
-      else
-        false
-      end
+      j = get_token_introspection(access_token)
+      JSON(j)["realm_access"]["roles"].include?(user_role.to_s)
+      # verify_setup
+      #
+      # if user_signed_in?(access_token)
+      #   dt = decoded_access_token(access_token)[0]
+      #   dt = dt["resource_access"][@client_id]
+      #   if dt != nil
+      #     dt["roles"].each do |role|
+      #       return true if role.to_s == user_role.to_s
+      #     end
+      #     false
+      #   else
+      #     false
+      #   end
+      # else
+      #   false
+      # end
     end
 
     def self.user_signed_in?(access_token = '')
