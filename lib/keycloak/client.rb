@@ -212,8 +212,12 @@ module Keycloak
     end
 
     def self.has_role?(user_role, access_token = '')
-      j = get_token_introspection(access_token)
-      JSON(j)["realm_access"]["roles"].include?(user_role.to_s)
+      begin
+        j = get_token_introspection(access_token)
+        JSON(j)["realm_access"]["roles"].include?(user_role.to_s)
+      rescue
+        false
+      end
       # verify_setup
       #
       # if user_signed_in?(access_token)
