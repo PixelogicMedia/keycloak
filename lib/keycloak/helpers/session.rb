@@ -92,11 +92,17 @@ module Keycloak
       private
 
       def refresh_token(token)
-        Keycloak.logger.debug("Refreshing token")
-        new_token = Keycloak::Client.get_token_by_refresh_token(token['refresh_token'])
+        begin
+          JSON::JWT.decode token['refresh_token'], :skip_verification #make sure refresh token is valid jwt
+          Keycloak.logger.debug("Refreshing token")
+          new_token = Keycloak::Client.get_token_by_refresh_token(token['refresh_token'])
 
-        Keycloak::Client.set_token(cookies, new_token)
-        new_token
+          Keycloak::Client.set_token(cookies, new_token)
+          new_token
+        rescue
+          nil
+        end
+
       end
 
       def second_authentication_try(token)
