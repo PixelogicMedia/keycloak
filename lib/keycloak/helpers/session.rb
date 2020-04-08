@@ -36,6 +36,8 @@ module Keycloak
         rescue
           nil
         end
+        Keycloak::Client.set_token(cookies, nil)
+        nil
       end
 
       def user_signed_in?
@@ -93,8 +95,10 @@ module Keycloak
 
       def refresh_token(token)
         begin
-          JSON::JWT.decode token['refresh_token'], :skip_verification #make sure refresh token is valid jwt
+
           Keycloak.logger.debug("Refreshing token")
+          # t = Keycloak.service.decode_and_verify(token['refresh_token'])
+          Keycloak.logger.debug(token['refresh_token'])
           new_token = Keycloak::Client.get_token_by_refresh_token(token['refresh_token'])
 
           Keycloak::Client.set_token(cookies, new_token)
