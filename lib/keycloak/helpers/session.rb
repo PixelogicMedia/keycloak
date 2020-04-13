@@ -97,8 +97,6 @@ module Keycloak
         begin
 
           Keycloak.logger.debug("Refreshing token")
-          # t = Keycloak.service.decode_and_verify(token['refresh_token'])
-          Keycloak.logger.debug(token['refresh_token'])
           new_token = Keycloak::Client.get_token_by_refresh_token(token['refresh_token'])
 
           Keycloak::Client.set_token(cookies, new_token)
