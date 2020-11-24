@@ -3,7 +3,7 @@ module Keycloak
   module Client
     class << self
       attr_accessor :realm, :auth_server_url
-      attr_reader :client_id, :secret, :configuration, :public_key
+      attr_reader :client_id, :secret, :configuration, :public_key, :client_token
     end
 
     def self.get_token(user, password)
@@ -100,6 +100,28 @@ module Keycloak
     end
 
     def self.get_token_by_client_credentials(client_id = '', secret = '')
+      if @client_token.nil? #first time
+        Keycloak.logger.debug("Requesting new token")
+        @client_token = request_new_token_for_client_by_credentials(client_id, secret)
+        return @client_token
+      end
+      parsed_token = JSON(@client_token)
+      begin #verify still active
+        Keycloak.logger.debug("Validating token")
+        Keycloak.service.decode_and_verify(parsed_token['access_token'])
+      rescue #expired
+        begin #refresh
+          Keycloak.logger.debug("Refreshing token")
+          @client_token = Keycloak::Client.get_token_by_refresh_token(parsed_token['refresh_token'])
+        rescue #refresh failed, we have to regenerate
+          Keycloak.logger.debug("Refresh token failed, requesting new token")
+          @client_token = request_new_token_for_client_by_credentials(client_id, secret)
+        end
+      end
+      return @client_token
+    end
+
+    def self.request_new_token_for_client_by_credentials(client_id = '', secret = '')
       setup_module
 
       client_id = @client_id if client_id.empty?
