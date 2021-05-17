@@ -1,6 +1,5 @@
 # Keycloak
 
-* [pt-BR translation](https://github.com/imagov/keycloak/blob/master/README.pt-BR.md)
 
 Keycloak gem was developed to integrate applications and services into [Red Hat](https://www.redhat.com)'s [Keycloak](http://www.keycloak.org/) system for user control, authentication, authorization, and session management.
 
@@ -15,17 +14,13 @@ Exemple: https://github.com/imagov/example-gem-keycloak
 Add this line in your application's <b>gemfile</b>:
 
 ```ruby
-gem 'keycloak'
+gem 'keycloak', git: 'https://github.com/PixelogicMedia/keycloak.git', branch: '2.4.0'
 ```
 
 Install the gem by running:
 
     $ bundle install
 
-Or install it yourself:
-
-    $ gem install keycloak
-	
 To add the configuration file:
 
 	$ rails generate initializer
@@ -33,10 +28,90 @@ To add the configuration file:
 	
 ## Use
 
-Since you already have a Keycloak environment configured and the gem already installed, the next step is to define how the application will authenticate. Keycloak works with key authentication protocols, such as OpenID Connect, Oauth 2.0 and SAML 2.0, integrating system access through Single-Sign On, and can also provide access to <b>LDAP</b> or <b>Active Directory</b> users.
+  - Go ahead and modify the `config/initializers/keycloak.rb` file
+```ruby
+Keycloak.configure do |config|
+  config.auth_server_url = ENV["PLM_SSO_AUTH_URL"]
+  config.realm   = 'phelix'
+  config.client_id   = 'localization'
+  config.client_secret   = ENV['PLM_SSO_CLIENT_SECRET']
+  config.keycloak_controller = 'session'
+  config.auth_callback_action = 'signin'
+  config.cookie_key = 'KEYCLOAK_TOKEN'
 
-When you register a realm and also a Client in your Keycloak environment, you can download the Client installation file into the root folder of the application so that gem gets the information it needs to interact with Keycloak. To download this, simply access your Client's registry, click the <b>Installation</b> tab, select <b>Keycloak OIDC JSON</b> in the <b>Format option</b> field and click <b>Download</b>. If your application does not only work with a specific client (application server for APIs, for example), then you can tell what is the realm that gem will interact in the `keycloak.rb` configuration file.
+  logger = Logger.new(STDOUT)
+  logger.level = Rails.env.development? ? Logger::DEBUG : Logger::ERROR
+  logger.progname = 'Keycloak'
+  logger.formatter = proc do |severity, time, progname, msg|
+    "[#{progname}][#{severity}] #{time}: \n\t#{msg} \n\n"
+  end
+  config.logger     = logger
+end
+```
 
+  - Include `Keycloak::Helpers::Session` in `ApplicationController`
+
+```ruby
+class ApplicationController < ActionController::Base
+  include Keycloak::Helpers::Session
+end
+```
+
+  - Create a `SessionController` with 2 routes `new` & `signin`
+```ruby
+class SessionController < ApplicationController
+  def new
+    redirect_to Keycloak::Client.url_login_redirect(session_signin_url, response_type = 'code')
+  end
+
+  def signin
+    Keycloak::Client.set_token(Keycloak::Client.get_token_by_code(params[:code], session_signin_url))
+    if current_user.nil?
+      flash[:success] = 'This user is not in our records.'
+      Keycloak::Client.logout
+      redirect_to root_path
+    else
+      redirect_to_session_history
+    end
+  end
+end
+```
+  - Add `attr_accessor :keycloak_id` to `user.rb`
+  
+##
+
+  #### RailsAdmin configutation
+
+-`config/initializers/rails_admin.rb`
+```ruby
+RailsAdmin.config do |config|
+  config.current_user_method(&:current_user)
+  config.authenticate_with(&:authenticate_user!)
+  config.authorize_with do
+    redirect_to main_app.root_path unless current_user.try(:has_role?,:rails_admin)
+  end
+end
+```
+-`config/initializers/rails_admin_controller.rb`
+```ruby
+require 'rails_admin/main_controller'
+
+module RailsAdmin
+
+  class MainController < RailsAdmin::ApplicationController
+    include Keycloak::Helpers::Session
+
+    def url_for(options)
+      if options[:controller] == '/session'
+        Rails.application.routes.url_helpers.url_for(options)
+      else
+        super(options)
+      end
+    end
+  end
+
+end
+```
 Gem has a main module called <b>Keycloak</b>. Within this module there are three other modules: <b>Client</b>, <b>Admin</b> and <b>Internal</b>.
 
 ### Module Keycloak
@@ -44,78 +119,82 @@ Gem has a main module called <b>Keycloak</b>. Within this module there are three
 The Keycloak module has some attributes and its definitions are fundamental for the perfect functioning of the gem in the application.
 
 ```ruby
-Keycloak.realm
+Keycloak.config.realm
 ```
 
 If your application does not only work with a specific client (application server for APIs, for example), then you can tell the realm name that gem will interact in that attribute. When installed, gem creates the `keycloak.rb` file in `config / initializers`. This attribute can be found and defined in this file.
 
 
 ```ruby
-Keycloak.auth_server_url
+Keycloak.config.auth_server_url
 ```
 
 For the same scenario as the above attribute, you can tell the url of the realm that the gem will interact in that attribute. When installed, gem creates the `keycloak.rb` file in `config / initializers`. This attribute can be found and defined in this file.
 
 
 ```ruby
-Keycloak.proxy
+Keycloak.config.proxy
 ```
 
 If the environment where your application will be used requires the use of proxy for the consumption of the Keycloak APIs, then define it in this attribute. When it is installed, gem creates the `keycloak.rb` file in `config/initializers`. This attribute can be found and defined in this file.
 
 
 ```ruby
-Keycloak.generate_request_exception
+Keycloak.config.generate_request_exception
 ```
 
 This attribute is to define whether the HTTP exceptions generated in the returns of the requests made to Keycloak will or will not burst in the application. If set to `false`, then the exception will not be blown and the HTTP response will be returned to the application to do its own processing. The default value of this attribute is `true`. When it is installed, gem creates the `keycloak.rb` file in `config/initializers`. This attribute can be found and defined in this file.
 
 
 ```ruby
-Keycloak.keycloak_controller
+Keycloak.config.keycloak_controller
 ```
 
 It is recommended that your application has a controller that centralizes the session actions that Keycloak will manage, such as login action, logout, session update, password reset, among others. Define in this attribute what is the name of the controller that will play this role. If your controller name is `SessionController`, then the value of this attribute should be `session` only. When it is installed, gem creates the `keycloak.rb` file in `config/initializers`. This attribute can be found and defined in this file.
 
-
 ```ruby
-Keycloak.proc_cookie_token
+Keycloak.config.auth_callback_action
 ```
 
-This attribute is an anonymous method (lambda). The same must be implemented in the application so that the gem has access to the authentication token which, in turn, must be stored in the cookie. When performing the keycloak authentication through gem, the system must store the token returned in the browser cookie, such as:
-```ruby
-cookies.permanent[:keycloak_token] = Keycloak::Client.get_token(params[:user_login], params[:user_password])
-```
+This should be the method name that keycloak will redirect to after a successful login, default value is `signin`
 
-The application can retrieve the token in the cookie by implementing the `Keycloak.proc_cookie_token` method as follows:
+An example callback implementation
 ```ruby
-Keycloak.proc_cookie_token = -> do
-  cookies.permanent[:keycloak_token]
-end
-```
-This way, every time gem needs to use the token information to consume a Keycloak service, it will invoke this lambda method.
-
-
-```ruby
-Keycloak.proc_external_attributes
-```
-
-Keycloak gives the possibility that new attributes are mapped to the user registry. However, when these attributes are application specific, it is recommended that you manage them yourself. To do this, the best solution is to create these attributes in the application - example: create a table in the database of the application itself containing the columns representing each of the attributes, also inserting in this table a unique key column, same as the User Id created in Keycloak, indicating that the one belonging to that Id has those attributes.
-In order for gem to have access to these attributes, set the `Keycloak.proc_external_attributes` attribute to a lambda method by obtaining the attributes of the logged-in user. Example:
-```ruby
-Keycloak.proc_external_attributes = -> do
-  attribute = UsuariosAtributo.find_or_create_by(user_keycloak_id: Keycloak::Client.get_attribute('sub'))
-  if attribute.status.nil?
-    attribute.status = false
-    attribute.save
+  def signin
+    Keycloak::Client.set_token(Keycloak::Client.get_token_by_code(params[:code], session_signin_url))
+    if current_user.nil?
+      flash[:notice] = 'Authentication failed.'
+      Keycloak::Client.logout
+      redirect_to root_path
+    else
+      redirect_to_session_history
+    end
   end
-  attribute
-end
+```
+<br/>
+
+```ruby
+Keycloak.config.cookie_key
 ```
 
+The gem handles authentication using cookies, In each request the gem will try to access `cookies[Keycloak.config.cookie_key]` to authenticate the user, this is just a simple string key, default value is `KEYCLOAK_TOKEN`
 
-<b>Note:</b> The `Keycloak.proc_cookie_token` and `Keycloak.proc_external_attributes` attributes can be defined in the `initialize` of the controller `ApplicationController`.
+Your only concern is calling `Keycloak::Client.set_token` appropriately in the auth callback method.
 
+### Keycloak::Helpers::Session
+This is a ruby concern to be included in `ApplicationController`
+
+Just put this line at the top of your `ApplicationController`
+
+`include Keycloak::Helpers::Session`
+
+Now you have access to a number of utility methods
+
+`current_user, user_signed_in?, sign_out!, authenticate_user!`
+
+Also there is `unauthenticated_redirect` which will redirect to the SSO server for authentication
+ & `redirect_to_session_history` which will redirect to the last url the user tried to access before authentication
+& `store_session_history` which will store current url in history to be used later for redirect.
 
 ### Keycloak::Client
 

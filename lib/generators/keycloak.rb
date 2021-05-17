@@ -1,10 +1,17 @@
-# Set proxy to connect in keycloak server
-Keycloak.proxy = ''
-# If true, then all request exception will explode in application (this is the default value)
-Keycloak.generate_request_exception = true
-# controller that manage the user session
-Keycloak.keycloak_controller = 'session'
-# relm name (only if the installation file is not present)
-Keycloak.realm = ''
-# relm url (only if the installation file is not present)
-Keycloak.auth_server_url = ''
+Keycloak.configure do |config|
+  config.auth_server_url = ENV["SSO_AUTH_URL"]
+  config.realm   = ''
+  config.client_id   = ''
+  config.client_secret   = ENV['SSO_CLIENT_SECRET']
+  config.keycloak_controller = 'session'
+  config.auth_callback_action = 'signin'
+  config.cookie_key = 'KEYCLOAK_TOKEN'
+
+  logger = Logger.new(STDOUT)
+  logger.level = Logger::DEBUG
+  logger.progname = 'Keycloak'
+  logger.formatter = proc do |severity, time, progname, msg|
+    "[#{progname}][#{severity}] #{time}: \n\t#{msg} \n\n"
+  end
+  config.logger     = logger
+end
